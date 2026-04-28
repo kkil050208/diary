@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>丝滑日记</title>
+
+<style>
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, sans-serif;
+    color: white;
+}
+
+/* 背景 */
+body::before {
+    content:"";
+    position:fixed;
+    width:200%;
+    height:200%;
+    background:linear-gradient(45deg,#ff9a9e,#fecfef,#fcb69f);
+    animation:bgMove 12s infinite linear;
+    z-index:-3;
+}
+
+@keyframes bgMove {
+    0%{transform:translate(0,0)}
+    50%{transform:translate(-25%,-25%)}
+    100%{transform:translate(0,0)}
+}
+
+/* 滚动容器（核心） */
+.container {
+    height: 100vh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 每页 */
+.section {
+    height: 100vh;
+    scroll-snap-align: start;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 卡片 */
+.card {
+    width: 85%;
+    max-width: 600px;
+    padding: 30px;
+    border-radius: 25px;
+
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(25px);
+
+    transition: 0.4s;
+    transform: scale(0.9);
+    opacity: 0.6;
+}
+
+/* 当前页高亮（重点） */
+.section.active .card {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* 输入 */
+textarea {
+    width: 100%;
+    height: 120px;
+    border-radius: 15px;
+    border: none;
+    padding: 10px;
+    font-size: 16px;
+    background: rgba(255,255,255,0.8);
+}
+
+/* 图片 */
+.preview img {
+    width: 100%;
+    border-radius: 12px;
+    margin-top: 10px;
+}
+
+/* 音乐按钮 */
+#musicBtn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+}
+#musicBtn.playing {
+    animation: spin 3s linear infinite;
+}
+@keyframes spin {
+    from{transform:rotate(0deg)}
+    to{transform:rotate(360deg)}
+}
+
+/* 光影 */
+.light {
+    position: fixed;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,200,230,0.4), transparent);
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* 樱花 */
+.sakura span {
+    position: fixed;
+    top: -10px;
+    animation: fall linear infinite;
+    pointer-events: none;
+    opacity: 0.6;
+}
+@keyframes fall {
+    0% { transform: translateY(0) rotate(0deg);}
+    100% { transform: translateY(100vh) rotate(360deg);}
+}
+</style>
+</head>
+
+<body>
+
+<div class="light" id="light"></div>
+<div class="sakura" id="sakura"></div>
+
+<div id="musicBtn">🎵</div>
+<audio id="bgm" src="music.mp3" loop></audio>
+
+<div class="container" id="container"></div>
+
+<script>
+// ===== 数据 =====
+let data = JSON.parse(localStorage.getItem("diaryData")) || [];
+
+const container = document.getElementById("container");
+
+// ===== 页面生成 =====
+for(let i=0;i<15;i++){
+    const sec = document.createElement("div");
+    sec.className = "section";
+
+    const text = data[i]?.text || "";
+    const img = data[i]?.img || "";
+
+    sec.innerHTML = `
+    <div class="card">
+        <h2>第 ${i+1} 页</h2>
+        <textarea data-i="${i}">${text}</textarea>
+        <input type="file" data-i="${i}">
+        <div class="preview">${img?`<img src="${img}">`:""}</div>
+    </div>
+    `;
+
+    container.appendChild(sec);
+}
+
+// ===== 保存 =====
+function save(){
+    localStorage.setItem("diaryData",JSON.stringify(data));
+}
+
+document.querySelectorAll("textarea").forEach(t=>{
+    t.oninput=e=>{
+        const i=e.target.dataset.i;
+        data[i]=data[i]||{};
+        data[i].text=e.target.value;
+        save();
+    };
+});
+
+document.querySelectorAll("input").forEach(input=>{
+    input.onchange=e=>{
+        const file=e.target.files[0];
+        const i=e.target.dataset.i;
+        const reader=new FileReader();
+        reader.onload=ev=>{
+            data[i]=data[i]||{};
+            data[i].img=ev.target.result;
+            save();
+            location.reload();
+        };
+        if(file) reader.readAsDataURL(file);
+    };
+});
+
+// ===== 滑动高亮（核心）=====
+const sections = document.querySelectorAll(".section");
+
+function updateActive(){
+    let index = 0;
+    sections.forEach((sec,i)=>{
+        const rect = sec.getBoundingClientRect();
+        if(rect.top < window.innerHeight/2) index=i;
+    });
+
+    sections.forEach(s=>s.classList.remove("active"));
+    sections[index].classList.add("active");
+}
+
+container.addEventListener("scroll", updateActive);
+updateActive();
+
+// ===== 光影 =====
+const light=document.getElementById("light");
+document.onmousemove=e=>{
+    light.style.left=e.clientX+"px";
+    light.style.top=e.clientY+"px";
+};
+
+// ===== 樱花 =====
+const sakura=document.getElementById("sakura");
+setInterval(()=>{
+    const el=document.createElement("span");
+    el.innerHTML="🌸";
+    el.style.left=Math.random()*100+"vw";
+    el.style.fontSize=(10+Math.random()*10)+"px";
+    el.style.animationDuration=(5+Math.random()*5)+"s";
+    sakura.appendChild(el);
+    setTimeout(()=>el.remove(),10000);
+},400);
+
+// ===== 音乐 =====
+const music=document.getElementById("bgm");
+const btn=document.getElementById("musicBtn");
+let playing=false;
+
+btn.onclick=()=>{
+    if(!playing){
+        music.play();
+        btn.classList.add("playing");
+    }else{
+        music.pause();
+        btn.classList.remove("playing");
+    }
+    playing=!playing;
+};
+</script>
+
+</body>
+</html>
